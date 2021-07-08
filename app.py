@@ -1,4 +1,26 @@
-from models.user import User
+# from models.user import User
+from flask import Flask, request, jsonify, make_response
+from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash, check_password_hash
+import uuid
+import jwt
+from datetime import datetime, timedelta
+from functools import wraps
+
+app = Flask(__name__)
+
+app.config['SECRET_KEY']='004f2af45d3a4e161a7dd2d17fdae47f'
+app.config['SQLALCHEMY_DATABASE_URI']='sqlite:///Database.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
+
+db = SQLAlchemy(app)
+
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key = True)
+    public_id = db.Column(db.String(50), unique = True)
+    name = db.Column(db.String(100))
+    email = db.Column(db.String(70), unique = True)
+    password = db.Column(db.String(80))
 
 # decorator for verifying the JWT
 def token_required(f):
@@ -18,7 +40,8 @@ def token_required(f):
             current_user = User.query\
                 .filter_by(public_id = data['public_id'])\
                 .first()
-        except:
+        except(e):
+            print(e)
             return jsonify({
                 'message' : 'Token is invalid !!'
             }), 401
@@ -53,9 +76,9 @@ def get_all_users(current_user):
 @app.route('/login', methods =['POST'])
 def login():
     # creates dictionary of form data
-    auth = request.form
+    auth = request.get_json()
   
-    if not auth or not auth.get('email') or not auth.get('password'):
+    if not auth or not auth['email'] or not auth['password']:
         # returns 401 if any email or / and password is missing
         return make_response(
             'Could not verify',
@@ -64,7 +87,7 @@ def login():
         )
   
     user = User.query\
-        .filter_by(email = auth.get('email'))\
+        .filter_by(email = auth['email'])\
         .first()
   
     if not user:
@@ -82,7 +105,7 @@ def login():
             'exp' : datetime.utcnow() + timedelta(minutes = 30)
         }, app.config['SECRET_KEY'])
   
-        return make_response(jsonify({'token' : token.decode('UTF-8')}), 201)
+        return make_response(jsonify({'token' : token}), 201)
     # returns 403 if password is wrong
     return make_response(
         'Could not verify',
@@ -94,11 +117,13 @@ def login():
 @app.route('/signup', methods =['POST'])
 def signup():
     # creates a dictionary of the form data
-    data = request.form
+    data = request.get_json()
   
     # gets name, email and password
-    name, email = data.get('name'), data.get('email')
-    password = data.get('password')
+    name, email = data['name'], data['email']
+    password = data['password']
+
+    print(name, email, password)
   
     # checking for existing user
     user = User.query\
